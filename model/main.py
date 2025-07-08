@@ -1,57 +1,90 @@
+# model/main.py
+
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+import pickle
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, classification_report
-import pickle5 as pickle
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+
+# Load dataset
+df = pd.read_csv('data/data.csv')
+
+# Clean unused empty column (common in breast cancer dataset)
+df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
 
-def create_model(data): 
-  X = data.drop(['diagnosis'], axis=1)
-  y = data['diagnosis']
-  
-  # scale the data
-  scaler = StandardScaler()
-  X = scaler.fit_transform(X)
-  
-  # split the data
-  X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-  )
-  
-  # train the model
-  model = LogisticRegression()
-  model.fit(X_train, y_train)
-  
-  # test model
-  y_pred = model.predict(X_test)
-  print('Accuracy of our model: ', accuracy_score(y_test, y_pred))
-  print("Classification report: \n", classification_report(y_test, y_pred))
-  
-  return model, scaler
+# Encode diagnosis column
+df['diagnosis'] = df['diagnosis'].map({'B': 0, 'M': 1})
 
+# Drop ID column if exists
+df.drop(columns=['id'], errors='ignore', inplace=True)
 
-def get_clean_data():
-  data = pd.read_csv("data/data.csv")
-  
-  data = data.drop(['Unnamed: 32', 'id'], axis=1)
-  
-  data['diagnosis'] = data['diagnosis'].map({ 'M': 1, 'B': 0 })
-  
-  return data
+# Separate features and labels
+X = df.drop('diagnosis', axis=1)
+y = df['diagnosis']
 
+# Handle missing values using mean imputation
+imputer = SimpleImputer(strategy='mean')
+X_imputed = imputer.fit_transform(X)
 
-def main():
-  data = get_clean_data()
+# Scale the features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X_imputed)
 
-  model, scaler = create_model(data)
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-  with open('model/model.pkl', 'wb') as f:
-    pickle.dump(model, f)
-    
-  with open('model/scaler.pkl', 'wb') as f:
+# Initialize models
+models = {
+    'logreg': LogisticRegression(),
+    'rf': RandomForestClassifier(),
+    'svm': SVC(probability=True)
+}
+
+# Dictionary to store metrics
+metrics = {}
+scores = {}
+
+# Train and save each model
+for name, model in models.items():
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    # Basic metrics
+    acc = accuracy_score(y_test, y_pred)
+    prec = precision_score(y_test, y_pred)
+    rec = recall_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
+    cm = confusion_matrix(y_test, y_pred).tolist()  # Convert to list for saving
+
+    # Store individual metrics
+    scores[name] = acc
+    metrics[name] = {
+        "accuracy": acc,
+        "precision": prec,
+        "recall": rec,
+        "f1_score": f1,
+        "confusion_matrix": cm
+    }
+
+    # Save model
+    with open(f'model/{name}.pkl', 'wb') as f:
+        pickle.dump(model, f)
+
+# Save scaler and imputer
+with open('model/scaler.pkl', 'wb') as f:
     pickle.dump(scaler, f)
-  
+with open('model/imputer.pkl', 'wb') as f:
+    pickle.dump(imputer, f)
 
-if __name__ == '__main__':
-  main()
+# Save scores and metrics
+with open('model/scores.pkl', 'wb') as f:
+    pickle.dump(scores, f)
+with open('model/metrics.pkl', 'wb') as f:
+    pickle.dump(metrics, f)
+
+print("✅ All models, scaler, imputer, scores, and metrics saved successfully.")

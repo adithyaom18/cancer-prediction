@@ -17,3 +17,44 @@
 .diagnosis.malicious {
   background-color: #ff4b4b
 }
+
+/* style.css */
+
+body {
+    background-color: #f7f7f7;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+h1 {
+    color: #003366;
+    font-weight: bold;
+    text-align: center;
+    padding: 20px 0;
+}
+
+.sidebar .sidebar-content {
+    background-color: #f0f0f0;
+}
+
+.stButton>button {
+    color: white;
+    background-color: #0b6e4f;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 16px;
+}
+
+.stButton>button:hover {
+    background-color: #087f5b;
+    transition: 0.3s ease-in-out;
+}
+
+.stNumberInput input {
+    border-radius: 6px;
+    padding: 4px;
+}
+
+.css-1v0mbdj p {
+    color: #333;
+    font-size: 16px;
+}

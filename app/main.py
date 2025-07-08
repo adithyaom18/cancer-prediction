@@ -1,195 +1,198 @@
+# app/main.py
+
 import streamlit as st
-import pickle
-import pandas as pd
-import plotly.graph_objects as go
 import numpy as np
+import pickle
+
+# Load all models, scaler, and imputer
+with open('model/logreg.pkl', 'rb') as f:
+    logreg_model = pickle.load(f)
+with open('model/rf.pkl', 'rb') as f:
+    rf_model = pickle.load(f)
+with open('model/svm.pkl', 'rb') as f:
+    svm_model = pickle.load(f)
+with open('model/scaler.pkl', 'rb') as f:
+    scaler = pickle.load(f)
+with open('model/imputer.pkl', 'rb') as f:
+    imputer = pickle.load(f)
+
+# Load metrics
+with open('model/metrics.pkl', 'rb') as f:
+    metrics = pickle.load(f)
 
 
-def get_clean_data():
-  data = pd.read_csv("data/data.csv")
-  
-  data = data.drop(['Unnamed: 32', 'id'], axis=1)
-  
-  data['diagnosis'] = data['diagnosis'].map({ 'M': 1, 'B': 0 })
-  
-  return data
+# Load model accuracy scores
+with open('model/scores.pkl', 'rb') as f:
+    scores = pickle.load(f)
 
 
-def add_sidebar():
-  st.sidebar.header("Cell Nuclei Measurements")
-  
-  data = get_clean_data()
-  
-  slider_labels = [
-        ("Radius (mean)", "radius_mean"),
-        ("Texture (mean)", "texture_mean"),
-        ("Perimeter (mean)", "perimeter_mean"),
-        ("Area (mean)", "area_mean"),
-        ("Smoothness (mean)", "smoothness_mean"),
-        ("Compactness (mean)", "compactness_mean"),
-        ("Concavity (mean)", "concavity_mean"),
-        ("Concave points (mean)", "concave points_mean"),
-        ("Symmetry (mean)", "symmetry_mean"),
-        ("Fractal dimension (mean)", "fractal_dimension_mean"),
-        ("Radius (se)", "radius_se"),
-        ("Texture (se)", "texture_se"),
-        ("Perimeter (se)", "perimeter_se"),
-        ("Area (se)", "area_se"),
-        ("Smoothness (se)", "smoothness_se"),
-        ("Compactness (se)", "compactness_se"),
-        ("Concavity (se)", "concavity_se"),
-        ("Concave points (se)", "concave points_se"),
-        ("Symmetry (se)", "symmetry_se"),
-        ("Fractal dimension (se)", "fractal_dimension_se"),
-        ("Radius (worst)", "radius_worst"),
-        ("Texture (worst)", "texture_worst"),
-        ("Perimeter (worst)", "perimeter_worst"),
-        ("Area (worst)", "area_worst"),
-        ("Smoothness (worst)", "smoothness_worst"),
-        ("Compactness (worst)", "compactness_worst"),
-        ("Concavity (worst)", "concavity_worst"),
-        ("Concave points (worst)", "concave points_worst"),
-        ("Symmetry (worst)", "symmetry_worst"),
-        ("Fractal dimension (worst)", "fractal_dimension_worst"),
-    ]
+# Model selection map
+model_options = {
+    'Logistic Regression': logreg_model,
+    'Random Forest': rf_model,
+    'Support Vector Machine': svm_model
+}
 
-  input_dict = {}
+# Streamlit UI
+st.title("🩺 Breast Cancer Prediction App")
+# Load custom CSS
+with open("assets/style.css") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-  for label, key in slider_labels:
-    input_dict[key] = st.sidebar.slider(
-      label,
-      min_value=float(0),
-      max_value=float(data[key].max()),
-      value=float(data[key].mean())
-    )
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/2920/2920277.png", width=100)
+    st.title("⚙️ Settings")
+
+    selected_model_name = st.selectbox("Choose ML Model", list(model_options.keys()))
     
-  return input_dict
-
-
-def get_scaled_values(input_dict):
-  data = get_clean_data()
-  
-  X = data.drop(['diagnosis'], axis=1)
-  
-  scaled_dict = {}
-  
-  for key, value in input_dict.items():
-    max_val = X[key].max()
-    min_val = X[key].min()
-    scaled_value = (value - min_val) / (max_val - min_val)
-    scaled_dict[key] = scaled_value
-  
-  return scaled_dict
-  
-
-def get_radar_chart(input_data):
-  
-  input_data = get_scaled_values(input_data)
-  
-  categories = ['Radius', 'Texture', 'Perimeter', 'Area', 
-                'Smoothness', 'Compactness', 
-                'Concavity', 'Concave Points',
-                'Symmetry', 'Fractal Dimension']
-
-  fig = go.Figure()
-
-  fig.add_trace(go.Scatterpolar(
-        r=[
-          input_data['radius_mean'], input_data['texture_mean'], input_data['perimeter_mean'],
-          input_data['area_mean'], input_data['smoothness_mean'], input_data['compactness_mean'],
-          input_data['concavity_mean'], input_data['concave points_mean'], input_data['symmetry_mean'],
-          input_data['fractal_dimension_mean']
-        ],
-        theta=categories,
-        fill='toself',
-        name='Mean Value'
-  ))
-  fig.add_trace(go.Scatterpolar(
-        r=[
-          input_data['radius_se'], input_data['texture_se'], input_data['perimeter_se'], input_data['area_se'],
-          input_data['smoothness_se'], input_data['compactness_se'], input_data['concavity_se'],
-          input_data['concave points_se'], input_data['symmetry_se'],input_data['fractal_dimension_se']
-        ],
-        theta=categories,
-        fill='toself',
-        name='Standard Error'
-  ))
-  fig.add_trace(go.Scatterpolar(
-        r=[
-          input_data['radius_worst'], input_data['texture_worst'], input_data['perimeter_worst'],
-          input_data['area_worst'], input_data['smoothness_worst'], input_data['compactness_worst'],
-          input_data['concavity_worst'], input_data['concave points_worst'], input_data['symmetry_worst'],
-          input_data['fractal_dimension_worst']
-        ],
-        theta=categories,
-        fill='toself',
-        name='Worst Value'
-  ))
-
-  fig.update_layout(
-    polar=dict(
-      radialaxis=dict(
-        visible=True,
-        range=[0, 1]
-      )),
-    showlegend=True
-  )
-  
-  return fig
-
-
-def add_predictions(input_data):
-  model = pickle.load(open("model/model.pkl", "rb"))
-  scaler = pickle.load(open("model/scaler.pkl", "rb"))
-  
-  input_array = np.array(list(input_data.values())).reshape(1, -1)
-  
-  input_array_scaled = scaler.transform(input_array)
-  
-  prediction = model.predict(input_array_scaled)
-  
-  st.subheader("Cell cluster prediction")
-  st.write("The cell cluster is:")
-  
-  if prediction[0] == 0:
-    st.write("<span class='diagnosis benign'>Benign</span>", unsafe_allow_html=True)
-  else:
-    st.write("<span class='diagnosis malicious'>Malicious</span>", unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("📊 **Model Metrics (Test Data):**")
     
-  
-  st.write("Probability of being benign: ", model.predict_proba(input_array_scaled)[0][0])
-  st.write("Probability of being malicious: ", model.predict_proba(input_array_scaled)[0][1])
-  
-  st.write("This app can assist medical professionals in making a diagnosis, but should not be used as a substitute for a professional diagnosis.")
+    name_map = {
+        "logreg": "Logistic Regression",
+        "rf": "Random Forest",
+        "svm": "SVM"
+    }
+
+    for key, metric in metrics.items():
+        name = name_map.get(key, key.upper())
+        st.markdown(f"**{name}**")
+        st.markdown(f"- Accuracy: `{metric['accuracy']*100:.2f}%`")
+        st.markdown(f"- Precision: `{metric['precision']*100:.2f}%`")
+        st.markdown(f"- Recall: `{metric['recall']*100:.2f}%`")
+        st.markdown(f"- F1 Score: `{metric['f1_score']*100:.2f}%`")
+        st.markdown("---")
+
+    st.markdown("💡 This model uses features extracted from digitized breast tumor biopsies to predict cancer type.")
+    st.markdown("🔗 [GitHub Repo](https://github.com/YOUR_USERNAME/YOUR_REPO)")
+    st.markdown("📫 Contact: [you@example.com](mailto:you@example.com)")
 
 
 
-def main():
-  st.set_page_config(
-    page_title="Breast Cancer Predictor",
-    page_icon=":female-doctor:",
-    layout="wide",
-    initial_sidebar_state="expanded"
-  )
-  
-  with open("assets/style.css") as f:
-    st.markdown("<style>{}</style>".format(f.read()), unsafe_allow_html=True)
-  
-  input_data = add_sidebar()
-  
-  with st.container():
-    st.title("Breast Cancer Predictor")
-    st.write("Please connect this app to your cytology lab to help diagnose breast cancer form your tissue sample. This app predicts using a machine learning model whether a breast mass is benign or malignant based on the measurements it receives from your cytosis lab. You can also update the measurements by hand using the sliders in the sidebar. ")
-  
-  col1, col2 = st.columns([4,1])
-  
-  with col1:
-    radar_chart = get_radar_chart(input_data)
-    st.plotly_chart(radar_chart)
-  with col2:
-    add_predictions(input_data)
+selected_model = model_options[selected_model_name]
+
+st.markdown("""
+This app predicts whether a tumor is **benign or malignant** using different machine learning models.
+""")
+
+st.subheader("Enter Tumor Features:")
+
+# Define 30 input fields (based on dataset)
+features = [
+    "radius_mean", "texture_mean", "perimeter_mean", "area_mean", "smoothness_mean",
+    "compactness_mean", "concavity_mean", "concave points_mean", "symmetry_mean", "fractal_dimension_mean",
+    "radius_se", "texture_se", "perimeter_se", "area_se", "smoothness_se",
+    "compactness_se", "concavity_se", "concave points_se", "symmetry_se", "fractal_dimension_se",
+    "radius_worst", "texture_worst", "perimeter_worst", "area_worst", "smoothness_worst",
+    "compactness_worst", "concavity_worst", "concave points_worst", "symmetry_worst", "fractal_dimension_worst"
+]
+
+feature_ranges = {
+    "radius_mean": (5.0, 30.0),
+    "texture_mean": (5.0, 40.0),
+    "perimeter_mean": (40.0, 200.0),
+    "area_mean": (100.0, 2500.0),
+    "smoothness_mean": (0.05, 0.2),
+    "compactness_mean": (0.01, 1.0),
+    "concavity_mean": (0.0, 1.0),
+    "concave points_mean": (0.0, 1.0),
+    "symmetry_mean": (0.1, 0.5),
+    "fractal_dimension_mean": (0.04, 0.2),
+
+    "radius_se": (0.0, 3.0),
+    "texture_se": (0.0, 5.0),
+    "perimeter_se": (0.0, 15.0),
+    "area_se": (0.0, 100.0),
+    "smoothness_se": (0.0, 0.05),
+    "compactness_se": (0.0, 0.2),
+    "concavity_se": (0.0, 0.3),
+    "concave points_se": (0.0, 0.2),
+    "symmetry_se": (0.0, 0.1),
+    "fractal_dimension_se": (0.0, 0.05),
+
+    "radius_worst": (10.0, 40.0),
+    "texture_worst": (10.0, 50.0),
+    "perimeter_worst": (70.0, 250.0),
+    "area_worst": (200.0, 4000.0),
+    "smoothness_worst": (0.1, 0.3),
+    "compactness_worst": (0.1, 1.2),
+    "concavity_worst": (0.0, 1.5),
+    "concave points_worst": (0.0, 1.5),
+    "symmetry_worst": (0.2, 0.9),
+    "fractal_dimension_worst": (0.05, 0.3),
+}
+
+# Helper to create synced input + slider
+def synced_input(feature, min_val, max_val):
+    key_input = feature + "_input"
+    key_slider = feature + "_slider"
+
+    # Initialize default value
+    if key_input not in st.session_state:
+        st.session_state[key_input] = float((min_val + max_val) / 2)
+    if key_slider not in st.session_state:
+        st.session_state[key_slider] = st.session_state[key_input]
+
+    # Sync slider with number input
+    def update_input():
+        st.session_state[key_input] = st.session_state[key_slider]
+
+    def update_slider():
+        st.session_state[key_slider] = st.session_state[key_input]
+
+    col1, col2 = st.columns([2, 3])
+
+    with col1:
+        st.number_input(
+            f"{feature}", min_value=min_val, max_value=max_val,
+            step=0.01, key=key_input, on_change=update_slider
+        )
+
+    with col2:
+        st.slider(
+            f"{feature}", min_value=min_val, max_value=max_val,
+            step=0.01, key=key_slider, on_change=update_input
+        )
+
+    return st.session_state[key_slider]
 
 
- 
-if __name__ == '__main__':
-  main()
+
+# Grouped features
+mean_features = [f for f in features if "_mean" in f]
+se_features = [f for f in features if "_se" in f]
+worst_features = [f for f in features if "_worst" in f]
+
+user_input = []
+
+st.subheader("📊 Mean Features")
+for feature in mean_features:
+    min_val, max_val = feature_ranges.get(feature, (0.0, 1.0))
+    val = synced_input(feature, float(min_val), float(max_val))
+    user_input.append(val)
+
+st.subheader("📉 Standard Error Features")
+for feature in se_features:
+    min_val, max_val = feature_ranges.get(feature, (0.0, 1.0))
+    val = synced_input(feature, float(min_val), float(max_val))
+    user_input.append(val)
+
+st.subheader("⚠️ Worst Case Features")
+for feature in worst_features:
+    min_val, max_val = feature_ranges.get(feature, (0.0, 1.0))
+    val = synced_input(feature, float(min_val), float(max_val))
+    user_input.append(val)
+
+
+
+if st.button("Predict"):
+    input_array = np.array(user_input).reshape(1, -1)
+    input_imputed = imputer.transform(input_array)
+    input_scaled = scaler.transform(input_imputed)
+    prediction = selected_model.predict(input_scaled)[0]
+    probability = selected_model.predict_proba(input_scaled)[0][prediction]
+
+    if prediction == 1:
+        st.error(f"🔴 The model predicts this tumor is **Malignant** with {probability*100:.2f}% confidence.")
+    else:
+        st.success(f"🟢 The model predicts this tumor is **Benign** with {probability*100:.2f}% confidence.")
