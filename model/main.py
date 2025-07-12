@@ -2,7 +2,7 @@
 
 import pandas as pd
 import pickle
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -15,7 +15,6 @@ df = pd.read_csv('data/data.csv')
 
 # Clean unused empty column (common in breast cancer dataset)
 df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-
 
 # Encode diagnosis column
 df['diagnosis'] = df['diagnosis'].map({'B': 0, 'M': 1})
@@ -38,11 +37,56 @@ X_scaled = scaler.fit_transform(X_imputed)
 # Train-test split
 X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-# Initialize models
+# Hyperparameter tuning for Logistic Regression
+logreg_grid = GridSearchCV(
+    LogisticRegression(),
+    param_grid={
+        'C': [0.1, 1.0, 10],
+        'solver': ['lbfgs', 'liblinear']
+    },
+    cv=5, scoring='accuracy', n_jobs=-1
+)
+logreg_grid.fit(X_train, y_train)
+logreg_model = logreg_grid.best_estimator_
+
+# Hyperparameter tuning for Random Forest
+rf_grid = GridSearchCV(
+    RandomForestClassifier(),
+    param_grid={
+        'n_estimators': [100, 200],
+        'max_depth': [None, 10, 20],
+        'min_samples_split': [2, 5]
+    },
+    cv=5, scoring='accuracy', n_jobs=-1
+)
+rf_grid.fit(X_train, y_train)
+rf_model = rf_grid.best_estimator_
+
+# Hyperparameter tuning for SVM
+svm_grid = GridSearchCV(
+    SVC(probability=True),
+    param_grid={
+        'C': [0.1, 1, 10],
+        'kernel': ['linear', 'rbf'],
+        'gamma': ['scale', 'auto']
+    },
+    cv=5, scoring='accuracy', n_jobs=-1
+)
+svm_grid.fit(X_train, y_train)
+svm_model = svm_grid.best_estimator_
+
+# Save models in dictionary
 models = {
-    'logreg': LogisticRegression(),
-    'rf': RandomForestClassifier(),
-    'svm': SVC(probability=True)
+    'logreg': logreg_model,
+    'rf': rf_model,
+    'svm': svm_model
+}
+
+# Store best parameters
+best_params = {
+    'logreg': logreg_grid.best_params_,
+    'rf': rf_grid.best_params_,
+    'svm': svm_grid.best_params_
 }
 
 # Dictionary to store metrics
@@ -87,4 +131,8 @@ with open('model/scores.pkl', 'wb') as f:
 with open('model/metrics.pkl', 'wb') as f:
     pickle.dump(metrics, f)
 
-print("✅ All models, scaler, imputer, scores, and metrics saved successfully.")
+# Save best hyperparameters
+with open('model/best_params.pkl', 'wb') as f:
+    pickle.dump(best_params, f)
+
+print("✅ All models, scaler, imputer, scores, metrics, and best params saved successfully.")
